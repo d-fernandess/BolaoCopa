@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { api } from '../api';
 import { useToast, calcScore, ScoreBadge, friendlyDate, groupByDate, flag, teamName, avatarColor } from '../components/ui';
 
-const PHASE_MULT = { grupos:1, oitavas:1.5, quartas:2, semis:2.5, terceiro:2, final:3 };
+const PHASE_MULT = { grupos:1, dezesseis:1.25, oitavas:1.5, quartas:2, semis:2.5, terceiro:2, final:3 };
 
 export default function Bolao() {
   const { id }  = useParams();
@@ -142,7 +142,14 @@ export default function Bolao() {
               <div style={{fontSize:'.72rem',fontWeight:700,color:'var(--gold)',textTransform:'uppercase',letterSpacing:'.8px',margin:'1rem 0 .5rem'}}>{friendlyDate(dateKey)}</div>
               {dayMatches.map(m => {
                 const pal = palpites[m.id] || {};
-                const locked = !!m.locked;
+                // Lock 30min before kickoff
+                const kickoff = m.match_date && m.match_time ? (() => {
+                  const dm = m.match_time.match(/(\d{1,2})\/(\d{2})/);
+                  const hm = m.match_time.match(/·\s*(\d{1,2})h(\d{2})?/);
+                  if (!dm) return null;
+                  return new Date(2026, parseInt(dm[2])-1, parseInt(dm[1]), hm?parseInt(hm[1]):0, hm&&hm[2]?parseInt(hm[2]):0);
+                })() : null;
+                const locked = !!m.locked || m.result_g1 !== null || (kickoff && (kickoff - new Date()) < 30*60*1000);
                 const label = m.grp ? `Grupo ${m.grp}` : m.phase_label;
                 const hourM = m.match_time?.match(/·\s*(\d{1,2}h(?:\d{2})?)/);
                 const hour  = hourM ? hourM[1] : '';
@@ -168,7 +175,8 @@ export default function Bolao() {
                             placeholder="—" value={pal.g2 ?? ''} disabled={locked}
                             onChange={e => setPalpites(p => ({...p,[m.id]:{...p[m.id],g2:e.target.value}}))} />
                         </div>
-                        {locked && <div className="result-label">✅ {m.result_g1}×{m.result_g2}</div>}
+                        {m.result_g1 !== null && <div className="result-label">✅ {m.result_g1}×{m.result_g2}</div>}
+                        {locked && m.result_g1 === null && <div style={{textAlign:'center',fontSize:'.68rem',color:'var(--red)',marginTop:4}}>🔒 Encerrado</div>}
                       </div>
                       <div className="team">
                         <span className="team-flag">{flag(m.team2)}</span>
@@ -272,7 +280,7 @@ export default function Bolao() {
 
           <div style={{fontSize:'.78rem',fontWeight:600,color:'var(--muted)',textTransform:'uppercase',letterSpacing:'.8px',marginBottom:'.6rem'}}>Multiplicadores</div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'.5rem',marginBottom:'1.5rem'}}>
-            {[['×1','Grupos'],['×1,5','Oitavas'],['×2','Quartas'],['×2,5','Semi'],['×2','3º Lugar'],['×3','Final']].map(([v,lb])=>(
+            {[['×1','Grupos'],['×1,25','16avos'],['×1,5','Oitavas'],['×2','Quartas'],['×2,5','Semi'],['×3','Final']].map(([v,lb])=>(
               <div key={lb} style={{background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:'var(--r-sm)',padding:'.625rem .5rem',textAlign:'center'}}>
                 <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.3rem',color:'var(--gold)'}}>{v}</div>
                 <div className="text-xs text-muted">{lb}</div>
@@ -282,7 +290,7 @@ export default function Bolao() {
 
           <div style={{fontSize:'.78rem',fontWeight:600,color:'var(--muted)',textTransform:'uppercase',letterSpacing:'.8px',marginBottom:'.6rem'}}>Bônus especiais</div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'.5rem',marginBottom:'1.5rem'}}>
-            {[['🏆','+30','Campeão'],['🥈','+15','Vice'],['⚽','+10','Artilheiro']].map(([ic,v,lb])=>(
+            {[['🏆','+30','Campeão'],['🥈','+15','Vice'],['⚽','+20','Artilheiro']].map(([ic,v,lb])=>(
               <div key={lb} style={{background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:'var(--r-sm)',padding:'.75rem .5rem',textAlign:'center'}}>
                 <div style={{fontSize:'1.3rem'}}>{ic}</div>
                 <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.6rem',color:'var(--gold)'}}>{v}</div>

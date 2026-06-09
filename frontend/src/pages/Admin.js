@@ -3,11 +3,12 @@ import { api } from '../api';
 import { useToast, flag, teamName } from '../components/ui';
 
 const PHASES = [
-  {id:'oitavas',label:'Oitavas de Final'},
-  {id:'quartas',label:'Quartas de Final'},
-  {id:'semis',label:'Semifinal'},
-  {id:'terceiro',label:'3º Lugar'},
-  {id:'final',label:'Final'},
+  {id:'dezesseis',label:'16avos de Final'},
+  {id:'oitavas',  label:'Oitavas de Final'},
+  {id:'quartas',  label:'Quartas de Final'},
+  {id:'semis',    label:'Semifinal'},
+  {id:'terceiro', label:'3º Lugar'},
+  {id:'final',    label:'Final'},
 ];
 const ALL_PHASES = [{id:'grupos',label:'Fase de Grupos'},...PHASES];
 
@@ -20,13 +21,14 @@ export default function Admin() {
   const [bonusCfg, setBonusCfg] = useState({ campeao:'', vice:'', artilheiro:'' });
   const [pendingMap, setPendingMap] = useState({});
   const [newBolao, setNewBolao] = useState({ name:'', description:'' });
-  const [newMatch, setNewMatch] = useState({ phase_id:'oitavas', team1:'', team2:'', match_time:'', match_date:'' });
+  const [newMatch, setNewMatch] = useState({ phase_id:'dezesseis', team1:'', team2:'', datetime:'' });
+  const [rankings, setRankings] = useState({});
+  const [selectedBolao, setSelectedBolao] = useState(null);
   const [showToast, Toast] = useToast();
 
   const load = useCallback(async () => {
     const [b, m, bc] = await Promise.all([api.getBoloes(), api.getMatches(), api.getBonusCfg()]);
     setBoloes(b); setMatches(m); setBonusCfg(bc||{});
-    // load pending for each bolão
     const pm = {};
     await Promise.all(b.map(async bo => { pm[bo.id] = await api.getPending(bo.id); }));
     setPendingMap(pm);
@@ -41,10 +43,9 @@ export default function Admin() {
 
   async function createBolao() {
     if (!newBolao.name) return showToast('Nome obrigatório!');
-    const b = await api.createBolao(newBolao);
+    await api.createBolao(newBolao);
     setNewBolao({ name:'', description:'' });
     showToast('Bolão criado! 🎉'); load();
-    return b;
   }
 
   async function copyLink(bolao) {
@@ -62,9 +63,20 @@ export default function Admin() {
   async function remove(bid, uid)  { await api.removeMember(bid, uid);  load(); showToast('Removido.'); }
 
   async function addMatch() {
-    if (!newMatch.team1||!newMatch.team2) return showToast('Informe os dois times!');
-    await api.addMatch(newMatch);
-    setNewMatch(n => ({...n, team1:'', team2:'', match_time:'', match_date:''}));
+    if (!newMatch.team1 || !newMatch.team2) return showToast('Informe os dois times!');
+    if (!newMatch.datetime) return showToast('Informe a data e hora!');
+
+    // Parse datetime-local → match_time string and match_date
+    const dt = new Date(newMatch.datetime);
+    const day   = String(dt.getDate()).padStart(2,'0');
+    const month = String(dt.getMonth()+1).padStart(2,'0');
+    const hh    = String(dt.getHours()).padStart(2,'0');
+    const mm    = dt.getMinutes();
+    const match_time = `${day}/${month} · ${hh}h${mm ? String(mm).padStart(2,'0') : ''} · Várias cidades`;
+    const match_date = `${dt.getFullYear()}-${month}-${day}`;
+
+    await api.addMatch({ phase_id: newMatch.phase_id, team1: newMatch.team1, team2: newMatch.team2, match_time, match_date });
+    setNewMatch(n => ({...n, team1:'', team2:'', datetime:''}));
     showToast('Jogo adicionado! 🏟️'); load();
   }
 
@@ -81,9 +93,15 @@ export default function Admin() {
     await api.deleteMatch(id); load();
   }
 
+  async function loadRanking(bolaoId) {
+    setSelectedBolao(bolaoId);
+    const r = await api.getRanking(bolaoId);
+    setRankings(prev => ({...prev, [bolaoId]: r}));
+  }
+
   async function saveBonusCfg() {
     await api.saveBonusCfg(bonusCfg);
-    showToast('Bônus registrado! 🏅'); load();
+    showToast('Bônus registrado! 🏅');
   }
 
   const tabStyle = (t) => ({
@@ -99,7 +117,7 @@ export default function Admin() {
       <div className="section-title">⚙️ Painel Admin</div>
 
       <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:'1.5rem'}}>
-        {[['boloes','⚽ Bolões'],['jogos','🏟️ Jogos'],['bonus','🏅 Bônus']].map(([t,l])=>(
+        {[['boloes','⚽ Bolões'],['jogos','🏟️ Jogos'],['ranking','🏆 Rankings'],['bonus','🏅 Bônus']].map(([t,l])=>(
           <button key={t} style={tabStyle(t)} onClick={() => setTab(t)}>
             {l}
             {t==='boloes' && totalPending > 0 &&
@@ -111,7 +129,6 @@ export default function Admin() {
       {/* ── BOLÕES ── */}
       {tab === 'boloes' && (
         <>
-          {/* Create */}
           <div className="card card-accent" style={{marginBottom:'1.25rem'}}>
             <div style={{fontWeight:700,marginBottom:'.75rem',fontSize:'.9rem'}}>➕ Criar novo bolão</div>
             <div className="form-group">
@@ -127,7 +144,6 @@ export default function Admin() {
             <button className="btn btn-green" onClick={createBolao}>🎉 Criar Bolão</button>
           </div>
 
-          {/* List */}
           {boloes.map(b => {
             const pending = pendingMap[b.id] || [];
             const url = `${window.location.origin}/cadastro/${b.invite_token}`;
@@ -141,8 +157,6 @@ export default function Admin() {
                   </div>
                   <button className="btn btn-red btn-xs" onClick={() => api.deleteBolao(b.id).then(load)}>✕</button>
                 </div>
-
-                {/* Invite link */}
                 <div className="invite-box" style={{marginBottom:'.75rem'}}>
                   <div className="text-xs text-muted" style={{marginBottom:4}}>🔗 Link de convite</div>
                   <div className="invite-url" style={{wordBreak:'break-all',fontSize:'.78rem'}}>{url}</div>
@@ -151,8 +165,6 @@ export default function Admin() {
                   <button className="btn btn-outline btn-sm" onClick={() => copyLink(b)}>📋 Copiar Link</button>
                   <button className="btn btn-sm" style={{background:'var(--surface2)',color:'var(--muted)',border:'1px solid var(--border)'}} onClick={() => newToken(b)}>🔄 Novo link</button>
                 </div>
-
-                {/* Pending */}
                 {pending.length > 0 && (
                   <div style={{borderTop:'1px solid var(--border)',paddingTop:'.75rem',marginTop:'.75rem'}}>
                     <div style={{fontWeight:600,fontSize:'.82rem',marginBottom:'.5rem',color:'var(--gold)'}}>
@@ -179,7 +191,6 @@ export default function Admin() {
       {/* ── JOGOS ── */}
       {tab === 'jogos' && (
         <>
-          {/* Add knockout match */}
           <div className="card card-accent" style={{marginBottom:'1.25rem'}}>
             <div style={{fontWeight:700,marginBottom:'.75rem',fontSize:'.9rem'}}>➕ Adicionar jogo do mata-mata</div>
             <div className="g2" style={{marginBottom:'.6rem'}}>
@@ -196,9 +207,10 @@ export default function Admin() {
             </div>
             <div className="g2" style={{marginBottom:'.9rem'}}>
               <div>
-                <label className="form-label">Data (AAAA-MM-DD)</label>
-                <input className="form-input" type="date" value={newMatch.match_date}
-                  onChange={e => setNewMatch(n=>({...n,match_date:e.target.value}))} />
+                <label className="form-label">📅 Data e Hora</label>
+                <input className="form-input" type="datetime-local" value={newMatch.datetime}
+                  style={{colorScheme:'dark'}}
+                  onChange={e => setNewMatch(n=>({...n,datetime:e.target.value}))} />
               </div>
               <div>
                 <label className="form-label">Fase</label>
@@ -211,17 +223,14 @@ export default function Admin() {
             <button className="btn btn-green" onClick={addMatch}>🏟️ Adicionar Jogo</button>
           </div>
 
-          {/* Results */}
           <div className="card">
             <div style={{fontWeight:700,marginBottom:'.75rem',fontSize:'.9rem'}}>📋 Registrar Resultados</div>
-            {/* Phase tabs */}
             <div className="tabs">
               {ALL_PHASES.filter(ph => matches.some(m => m.phase_id === ph.id)).map(ph => (
                 <button key={ph.id} className={`tab ${matchPhase===ph.id?'active':''}`}
                   onClick={() => setMatchPhase(ph.id)}>{ph.label}</button>
               ))}
             </div>
-            {/* Group tabs for grupos phase */}
             {matchPhase === 'grupos' && (
               <div className="tabs" style={{marginBottom:'.875rem'}}>
                 {'ABCDEFGHIJKL'.split('').map(g => (
@@ -261,7 +270,7 @@ export default function Admin() {
             Registre aqui ao final do torneio para os pontos bônus serem aplicados automaticamente.
           </p>
           <div className="g3" style={{marginBottom:'.875rem'}}>
-            {[['campeao','🏆','Campeão (+30)'],['vice','🥈','Vice-campeão (+15)'],['artilheiro','⚽','Artilheiro (+10)']].map(([k,ic,lb])=>(
+            {[['campeao','🏆','Campeão (+30)'],['vice','🥈','Vice-campeão (+15)'],['artilheiro','⚽','Artilheiro (+20)']].map(([k,ic,lb])=>(
               <div key={k}>
                 <label className="form-label">{ic} {lb}</label>
                 <input className="form-input" placeholder="País ou jogador" value={bonusCfg[k]||''}
@@ -271,6 +280,55 @@ export default function Admin() {
           </div>
           <button className="btn btn-green" onClick={saveBonusCfg}>💾 Salvar</button>
         </div>
+      )}
+
+      {/* ── RANKINGS ── */}
+      {tab === 'ranking' && (
+        <>
+          {boloes.length === 0 ? (
+            <div className="no-content"><span className="icon">🏆</span>Nenhum bolão criado ainda.</div>
+          ) : boloes.map(b => {
+            const members = b.members || [];
+            const rank = rankings[b.id] || [];
+            const medals = ['🥇','🥈','🥉'];
+            return (
+              <div key={b.id} className="card" style={{marginBottom:'1rem'}}>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'.75rem',flexWrap:'wrap',gap:'.5rem'}}>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:'.9rem'}}>🏆 {b.name}</div>
+                    <div className="text-xs text-muted">👥 {b.member_count} membros aprovados</div>
+                  </div>
+                  <button className="btn btn-outline btn-sm" onClick={() => loadRanking(b.id)}>
+                    📊 Ver Ranking
+                  </button>
+                </div>
+
+                {selectedBolao === b.id && (
+                  rank.length === 0 ? (
+                    <div className="text-sm text-muted" style={{padding:'.5rem 0'}}>Nenhum palpite ainda neste bolão.</div>
+                  ) : rank.map((r, i) => (
+                    <div key={r.id} style={{display:'flex',alignItems:'center',gap:'.75rem',padding:'.5rem 0',borderBottom:'1px solid var(--border)'}}>
+                      <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.2rem',minWidth:28,color: i===0?'var(--gold)':i===1?'#c0c0c0':i===2?'#cd7f32':'var(--muted)'}}>
+                        {medals[i]||(i+1)}
+                      </div>
+                      <div style={{width:36,height:36,borderRadius:'50%',background:['#1a7a4a','#185fa5','#993556','#533ab7','#854f0b','#993c1d'][i%6],display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:'.82rem',flexShrink:0}}>
+                        {r.name.slice(0,2).toUpperCase()}
+                      </div>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontWeight:500,fontSize:'.88rem',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.name}</div>
+                        <div className="text-xs text-muted">{r.exact} exatos · {r.winners} venc.</div>
+                      </div>
+                      <div style={{textAlign:'right'}}>
+                        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.2rem',color:'var(--gold)'}}>{r.pts}</div>
+                        <div className="text-xs text-muted">pts</div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            );
+          })}
+        </>
       )}
 
       {Toast}

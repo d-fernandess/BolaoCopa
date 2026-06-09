@@ -8,6 +8,10 @@ export default function Layout() {
   const { pathname } = useLocation();
   const isAdmin = user?.role === 'admin';
 
+  // Extract bolão id from path if inside a bolão
+  const bolaoMatch = pathname.match(/^\/bolao\/(\d+)/);
+  const bolaoId = bolaoMatch ? bolaoMatch[1] : null;
+
   return (
     <>
       <header className="app-header">
@@ -15,12 +19,12 @@ export default function Layout() {
           <div className="logo" style={{cursor:'pointer'}} onClick={() => nav('/')}>
             Bolão <span>Copa</span> ⚽
           </div>
-          <div style={{display:'flex', alignItems:'center', gap:'.5rem'}}>
+          <div style={{display:'flex',alignItems:'center',gap:'.5rem'}}>
             {isAdmin && (
-              <button
-                onClick={() => nav('/admin')}
-                style={{background: pathname.startsWith('/admin') ? 'rgba(245,200,66,.2)' : 'none', border:'1px solid rgba(245,200,66,.3)', borderRadius:8, color:'var(--gold)', fontSize:'.78rem', padding:'5px 10px', cursor:'pointer', fontFamily:'inherit', fontWeight:600}}
-              >
+              <button onClick={() => nav('/admin')}
+                style={{background: pathname.startsWith('/admin') ? 'rgba(245,200,66,.2)' : 'none',
+                  border:'1px solid rgba(245,200,66,.3)', borderRadius:8, color:'var(--gold)',
+                  fontSize:'.78rem', padding:'5px 10px', cursor:'pointer', fontFamily:'inherit', fontWeight:600}}>
                 ⚙️ Admin
               </button>
             )}
@@ -37,25 +41,25 @@ export default function Layout() {
       </div>
 
       <nav className="bottom-nav">
-        <button
-          className={pathname === '/' ? 'active' : ''}
-          onClick={() => nav('/')}
-        >
-          <span className="icon">⚽</span>
-          Bolões
+        <button className={pathname === '/' ? 'active' : ''} onClick={() => nav('/')}>
+          <span className="icon">⚽</span>Bolões
         </button>
+
+        {/* When inside a bolão, show contextual nav */}
+        {bolaoId && <>
+          <button className={pathname === `/bolao/${bolaoId}` && !pathname.includes('#') ? 'active' : ''}
+            onClick={() => nav(`/bolao/${bolaoId}`)}>
+            <span className="icon">📋</span>Palpites
+          </button>
+        </>}
+
         {isAdmin && (
-          <button
-            className={pathname.startsWith('/admin') ? 'active' : ''}
-            onClick={() => nav('/admin')}
-          >
-            <span className="icon">⚙️</span>
-            Admin
+          <button className={pathname.startsWith('/admin') ? 'active' : ''} onClick={() => nav('/admin')}>
+            <span className="icon">⚙️</span>Admin
           </button>
         )}
         <button onClick={logout}>
-          <span className="icon">🚪</span>
-          Sair
+          <span className="icon">🚪</span>Sair
         </button>
       </nav>
     </>
