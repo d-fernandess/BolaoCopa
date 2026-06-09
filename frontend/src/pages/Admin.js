@@ -80,6 +80,12 @@ export default function Admin() {
     showToast('Jogo adicionado! 🏟️'); load();
   }
 
+  async function resetResult(id) {
+    if (!window.confirm('Resetar resultado? Os palpites voltarão a aparecer para edição.')) return;
+    await api.setResult(id, { g1: null, g2: null });
+    showToast('Resultado resetado! ↩'); load();
+  }
+
   async function saveResult(id) {
     const g1 = document.getElementById(`rg1-${id}`)?.value;
     const g2 = document.getElementById(`rg2-${id}`)?.value;
@@ -254,7 +260,13 @@ export default function Admin() {
                 <input id={`rg2-${m.id}`} type="number" min="0" max="99" defaultValue={m.result_g2??''}
                   placeholder="—" style={{width:44,height:38,textAlign:'center',fontSize:'1rem',fontWeight:700,background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:6,color:'var(--text)',outline:'none'}} />
                 <button className="btn btn-outline btn-sm" onClick={() => saveResult(m.id)}>Salvar</button>
-                {m.result_g1!==null&&<span className="text-xs" style={{color:'var(--green-light)'}}>✓ {m.result_g1}×{m.result_g2}</span>}
+                {m.result_g1!==null&&<>
+                  <span className="text-xs" style={{color:'var(--green-light)'}}>✓ {m.result_g1}×{m.result_g2}</span>
+                  <button className="btn btn-sm" title="Resetar resultado" onClick={() => resetResult(m.id)}
+                    style={{background:'none',border:'1px solid var(--border)',color:'var(--muted)',padding:'4px 8px',fontSize:'.72rem'}}>
+                    ↩ Reset
+                  </button>
+                </>}
                 {m.phase_id!=='grupos'&&<button className="btn btn-red btn-xs" onClick={() => delMatch(m.id)}>✕</button>}
               </div>
             ))}
