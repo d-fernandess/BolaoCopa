@@ -1,0 +1,11 @@
+{
+  "name": "bolao-copa",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "cd frontend && npm install && npm run build",
+    "start": "cd backend && node server.js",
+    "dev:back": "cd backend && npm install && node server.js",
+    "dev:front": "cd frontend && npm install && npm start"
+  },
+  "engines": { "node": ">=18" }
+}
